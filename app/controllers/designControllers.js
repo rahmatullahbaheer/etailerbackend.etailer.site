@@ -80,18 +80,6 @@ class designControllers {
       return res.status(500).json({ error: error.message });
     }
   }
-
-  async createCustomDesign(res, res) {
-    try {
-      const query = "INSERT INTO custom_design SET ?";
-      await pool.query(query, [req.body]);
-      return res
-        .status(201)
-        .json({ message: "Custom Design added successfully", data: req.body });
-    } catch (error) {
-      return res.status(500).json({ error: error.message });
-    }
-  }
 }
 
 module.exports = new designControllers();
