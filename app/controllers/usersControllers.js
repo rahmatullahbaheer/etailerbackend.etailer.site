@@ -45,17 +45,18 @@ class Users {
         if (creatorUser[0].created_by == created_by) {
           return res.status(400).json({
             error: true,
-            msg: "Invalid 'created_by': No user exists against this ID",
+            msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email}   `,
           });
         }
       }
+
       if (!created_by) {
         const [creatorUser] = await pool.query(
-          "SELECT id FROM users WHERE id = ? AND is_delete = 'false'",
-          [created_by]
+          "SELECT id FROM users WHERE email = ?",
+          [email]
         );
-
-        if (creatorUser.length === 0) {
+        console.log("creatorUser", creatorUser[0]);
+        if (creatorUser.length !== 0) {
           return res.status(400).json({
             error: true,
             msg: "User Already Exist",
@@ -85,7 +86,7 @@ class Users {
           type,
           role,
           imagePath,
-          created_by,
+          created_by, //th
         ]
       );
 
