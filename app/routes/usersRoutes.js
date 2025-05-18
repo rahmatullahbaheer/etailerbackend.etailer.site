@@ -1,9 +1,9 @@
 const express = require("express");
 const usersControllers = require("../controllers/usersControllers");
 const router = express.Router();
-const upload = require('../middleware/upload');
+const upload = require("../middleware/upload");
 
-router.patch("/register",upload.single('image') , usersControllers.register);
+router.post("/register", upload.single("image"), usersControllers.register);
 router.post("/login", usersControllers.login);
 // PATCH route for updating a user by ID (editUser)
 router.patch("/users/:id", upload.single("image"), usersControllers.editUser);
@@ -17,7 +17,5 @@ router.post("/change-password/:id", usersControllers.changePassword);
 router.post("/forgot-password", usersControllers.forgotPassword);
 router.post("/verify-otp", usersControllers.verifyOtp);
 router.post("/reset-password", usersControllers.resetPassword);
-
-
 
 module.exports = router;

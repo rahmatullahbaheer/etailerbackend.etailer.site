@@ -2,11 +2,11 @@ const mysql = require("mysql2/promise");
 const pool = mysql.createPool({
   host: "localhost",
   //liver db
-     user: "etaixrxs_rbtech",
-       password: "OaX&,M19Bh,3",
+  user: "etaixrxs_rbtech",
+  password: "OaX&,M19Bh,3",
   //local db
-//   user: "root",
-//   password: "root",
+  // user: "root",
+  // password: "root",
   database: "etaixrxs_eTailer",
   port: 3306,
 });
