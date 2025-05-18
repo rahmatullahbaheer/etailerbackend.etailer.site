@@ -37,12 +37,11 @@ class Users {
       // ✅ 2. Check if created_by user exists and is not deleted
       if (created_by) {
         const [creatorUser] = await pool.query(
-          "SELECT * FROM users WHERE email = ? AND is_delete = 'false'",
-          [email]
+          "SELECT * FROM users WHERE email = ? AND created_by = ? AND is_delete = 'false'",
+          [email, created_by]
         );
-        console.log("creatorUser", creatorUser[0]);
 
-        if (creatorUser[0].created_by == created_by) {
+        if (creatorUser.length !== 0) {
           return res.status(400).json({
             error: true,
             msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email}   `,
@@ -55,7 +54,7 @@ class Users {
           "SELECT id FROM users WHERE email = ?",
           [email]
         );
-        console.log("creatorUser", creatorUser[0]);
+
         if (creatorUser.length !== 0) {
           return res.status(400).json({
             error: true,
