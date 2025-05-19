@@ -1,50 +1,57 @@
 const pool = require("../config/db");
 
 class userOrdersControllers {
-// Create a new order
-async createOrders(req, res) {
-  const image = req.file;
-  const suitImage = image ? image.path : null; // 👈 Save full image path (convert \ to / for safety)
-  try {
-    const orderData = {
-      suitDeliveryDate: req.body.suitDeliveryDate,
-      suitCount: req.body.suitCount,
-      amountPerSuit: req.body.amountPerSuit,
-      advancePayment: req.body.advancePayment,
-      urgent: req.body.urgent,
-      created_at: new Date(),
-      user_id: req.body.user_id,
-      status: req.body.status,
-      suitImage: suitImage, // ✅ full path
-      mearsurement_id : req.body.mearsurement_id,
-      style_id : req.body.style_id
-    };
+  // Create a new order
+  // Create a new order
+  async createOrders(req, res) {
+    const image = req.file;
+    const suitImage = image ? image.path.replace(/\\/g, "/") : null;
 
-    const query = 'INSERT INTO user_orders SET ?';
-    const result = await pool.query(query, [orderData]);
+    try {
+      const deliveryDate = req.body.suitDeliveryDate
+        ? new Date(req.body.suitDeliveryDate)
+            .toISOString()
+            .slice(0, 19)
+            .replace("T", " ")
+        : null;
 
-    const insertedId = result[0].insertId;
+      const orderData = {
+        suitDeliveryDate: deliveryDate,
+        suitCount: req.body.suitCount,
+        amountPerSuit: req.body.amountPerSuit,
+        advancePayment: req.body.advancePayment,
+        urgent: req.body.urgent,
+        created_at: new Date(),
+        user_id: req.body.user_id,
+        status: req.body.status,
+        suitImage: suitImage,
+        mearsurement_id: req.body.mearsurement_id,
+        style_id: req.body.style_id,
+      };
 
-    return res.status(201).json({
-      message: 'Order added successfully',
-      data: { ...orderData, id: insertedId }
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+      const query = "INSERT INTO user_orders SET ?";
+      const [result] = await pool.query(query, [orderData]);
+
+      const insertedId = result.insertId;
+
+      return res.status(201).json({
+        message: "Order added successfully",
+        data: { ...orderData, id: insertedId },
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   }
-}
-
-
 
   // Get an order by ID
   async getOrderById(req, res) {
     try {
       const { id } = req.params;
-      const query = 'SELECT * FROM user_orders WHERE id = ?';
+      const query = "SELECT * FROM user_orders WHERE id = ?";
       const [rows] = await pool.query(query, [id]);
-      
+
       if (rows.length === 0) {
-        return res.status(404).json({ message: 'Order not found' });
+        return res.status(404).json({ message: "Order not found" });
       }
 
       return res.status(200).json({ data: rows[0] });
@@ -54,58 +61,67 @@ async createOrders(req, res) {
   }
 
   // Update an order
-async updateOrder(req, res) {
-  try {
-    const { id } = req.params;
-    const image = req.file;
-    const suitImage = image ? image.path : req.body.suitImage; // Use uploaded image path or retain existing
+  async updateOrder(req, res) {
+    try {
+      const { id } = req.params;
+      const image = req.file;
+      const suitImage = image ? image.path : req.body.suitImage;
 
-    // Construct the updated order data
-    const updatedOrder = {
-      suitDeliveryDate: req.body.suitDeliveryDate,
-      suitCount: req.body.suitCount,
-      amountPerSuit: req.body.amountPerSuit,
-      advancePayment: req.body.advancePayment,
-      urgent: req.body.urgent,
-      status: req.body.status,
-      suitImage: suitImage, // Set to new image path or existing
-    };
+      // Fix date format for MySQL
+      const deliveryDate = req.body.suitDeliveryDate
+        ? new Date(req.body.suitDeliveryDate)
+            .toISOString()
+            .slice(0, 19)
+            .replace("T", " ")
+        : null;
 
-    const query = 'UPDATE user_orders SET ? WHERE id = ?';
-    const [result] = await pool.query(query, [updatedOrder, id]);
+      const updatedOrder = {
+        suitDeliveryDate: deliveryDate,
+        suitCount: req.body.suitCount,
+        amountPerSuit: req.body.amountPerSuit,
+        advancePayment: req.body.advancePayment,
+        urgent: req.body.urgent,
+        status: req.body.status,
+        suitImage: suitImage,
+      };
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Order not found or no changes made' });
+      const query = "UPDATE user_orders SET ? WHERE id = ?";
+      const [result] = await pool.query(query, [updatedOrder, id]);
+
+      if (result.affectedRows === 0) {
+        return res
+          .status(404)
+          .json({ message: "Order not found or no changes made" });
+      }
+
+      return res.status(200).json({ message: "Order updated successfully" });
+    } catch (error) {
+      console.log("Error", error);
+      return res.status(500).json({ error: error.message });
     }
-
-    return res.status(200).json({ message: 'Order updated successfully' });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
   }
-}
-
 
   // Update an order to set is_delete = false
-async deleteOrder(req, res) {
-  try {
-    const { id } = req.params;
-    const query = 'UPDATE user_orders SET is_delete = "false" WHERE id = ?';
-    const [result] = await pool.query(query, [id]);
+  async deleteOrder(req, res) {
+    try {
+      const { id } = req.params;
+      const query = 'UPDATE user_orders SET is_delete = "false" WHERE id = ?';
+      const [result] = await pool.query(query, [id]);
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Order not found' });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      return res.status(200).json({ message: "Order updated successfully" });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
     }
-
-    return res.status(200).json({ message: 'Order updated successfully' });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
   }
-}
 
-async getOrdersByStatus(req, res) {
-  try {
-    const { status } = req.query; // Get the status from the request query
-    const query = `
+  async getOrdersByStatus(req, res) {
+    try {
+      const { status } = req.query; // Get the status from the request query
+      const query = `
       SELECT uo.id, uo.suitDeliveryDate,uo.suitImage, uo.suitCount, uo.amountPerSuit, uo.advancePayment, uo.urgent, 
              uo.created_at, uo.user_id, uo.status as order_status, 
              u.id as user_id, u.full_name, u.image, u.user_name, u.country, u.city, u.phone_no, 
@@ -122,36 +138,32 @@ async getOrdersByStatus(req, res) {
       WHERE uo.status = ? AND uo.is_delete = "true"  -- <<< ADD THIS CONDITION
     `;
 
-    const [rows] = await pool.query(query, [status]);
+      const [rows] = await pool.query(query, [status]);
 
-    const response = rows.map(order => ({
-      orderDetails: {
-        id: order.id,
-        suitDeliveryDate: order.suitDeliveryDate,
-        suitCount: order.suitCount,
-        amountPerSuit: order.amountPerSuit,
-        advancePayment: order.advancePayment,
-        urgent: order.urgent,
-        created_at: order.created_at,
-        user_id: order.user_id,
-        status: order.order_status,
-      },
-      userDetails: {
-        id: order.user_id,
-        user_name: order.user_name,
-        user_image_url: order.suitImage,  // Use the correct image URL
-      }
-    }));
+      const response = rows.map((order) => ({
+        orderDetails: {
+          id: order.id,
+          suitDeliveryDate: order.suitDeliveryDate,
+          suitCount: order.suitCount,
+          amountPerSuit: order.amountPerSuit,
+          advancePayment: order.advancePayment,
+          urgent: order.urgent,
+          created_at: order.created_at,
+          user_id: order.user_id,
+          status: order.order_status,
+        },
+        userDetails: {
+          id: order.user_id,
+          user_name: order.user_name,
+          user_image_url: order.suitImage, // Use the correct image URL
+        },
+      }));
 
-    return res.status(200).json({ data: response });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+      return res.status(200).json({ data: response });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   }
-}
-
-
-
-
 }
 
 module.exports = new userOrdersControllers();

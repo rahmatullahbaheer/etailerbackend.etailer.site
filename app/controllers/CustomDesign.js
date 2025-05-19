@@ -1,37 +1,47 @@
 const pool = require("../config/db");
 
 class CustomDesignController {
- async createCustomDesign(req, res) {
-  const image = req.file;
+  async createCustomDesign(req, res) {
+    const image = req.file;
 
-  try {
-    if (!image) {
-      return res.status(400).json({ message: "Image is required" });
+    try {
+      if (!image) {
+        return res.status(400).json({ message: "Image is required" });
+      }
+
+      const { user_id, name, urdu_name } = req.body;
+      const imagePath = image ? image.path : null; // ðŸ‘ˆ Save image path
+      const designData = {
+        user_id,
+        name,
+        urdu_name,
+        image: imagePath,
+        created_at: new Date(), // Add current date & time
+      };
+
+      const query = "INSERT INTO custom_design SET ?";
+      const [rows] = await pool.query(query, [designData]);
+      console.log("MMMMM", rows);
+      //find record
+      const [record] = await pool.query(
+        "SELECT * FROM custom_design WHERE id = ?",
+        [rows.insertId]
+      );
+
+      return res.status(201).json({
+        message: "Custom design added successfully",
+        data: {
+          id: record[0].id,
+          src: record[0].image,
+          title: record[0].name,
+          urdu: record[0].urdu_name,
+          type: record[0].type,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
     }
-
-    const { user_id, name, urdu_name } = req.body;
-const imagePath = image ? image.path : null; // ðŸ‘ˆ Save image path
-    const designData = {
-      user_id,
-      name,
-      urdu_name,
-      image: imagePath,
-
-      created_at: new Date(), // Add current date & time
-    };
-
-    const query = "INSERT INTO custom_design SET ?";
-    await pool.query(query, [designData]);
-
-    return res.status(201).json({
-      message: "Custom design added successfully",
-      data: designData,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
   }
-}
-
 
   // Get all custom designs
   async getCustomDesigns(req, res) {
@@ -47,7 +57,10 @@ const imagePath = image ? image.path : null; // ðŸ‘ˆ Save image path
   async getCustomDesignById(req, res) {
     const { id } = req.params;
     try {
-      const [rows] = await pool.query("SELECT * FROM custom_design WHERE id = ?", [id]);
+      const [rows] = await pool.query(
+        "SELECT * FROM custom_design WHERE id = ?",
+        [id]
+      );
       if (rows.length === 0)
         return res.status(404).json({ message: "Custom design not found" });
       return res.json(rows[0]);
@@ -60,9 +73,14 @@ const imagePath = image ? image.path : null; // ðŸ‘ˆ Save image path
   async getCustomDesignsByUserId(req, res) {
     const { user_id } = req.params;
     try {
-      const [rows] = await pool.query("SELECT * FROM custom_design WHERE user_id = ?", [user_id]);
+      const [rows] = await pool.query(
+        "SELECT * FROM custom_design WHERE user_id = ?",
+        [user_id]
+      );
       if (rows.length === 0)
-        return res.status(404).json({ message: "No designs found for this user" });
+        return res
+          .status(404)
+          .json({ message: "No designs found for this user" });
       return res.json(rows);
     } catch (error) {
       return res.status(500).json({ error: error.message });

@@ -4,35 +4,36 @@ const bodyParser = require("body-parser");
 // const pool = require("./app/config/db");
 
 const app = express();
-
+app.use("/uploads", express.static("uploads"));
 // Middleware
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 
-app.use(cors({
-  origin: "*",
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 
 // Fix: Use async/await properly in GET request
-app.use("/api/v1/test",(req,res)=>{
-    return res.send("Hello World");
-})
+app.use("/api/v1/test", (req, res) => {
+  return res.send("Hello World");
+});
 // POST request for testing
 app.post("/api/v1/test", (req, res) => {
   const { name } = req.body; // Assuming you're sending JSON with `name`
-  
+
   if (!name) {
     return res.status(400).send({ message: "Name is required" });
   }
-  
+
   // Respond back with only the received `name`
   return res.status(200).send({
     message: "Data received successfully",
-    name: name
+    name: name,
   });
 });
-
 
 app.use("/api/v1", require("./app/routes/usersRoutes"));
 app.use("/api/v1", require("./app/routes/measurementsRoutes"));

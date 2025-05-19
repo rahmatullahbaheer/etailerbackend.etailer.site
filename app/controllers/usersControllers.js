@@ -33,35 +33,43 @@ class Users {
           });
         }
       }
+      if (existingUser.length !== 0) {
+        return res.status(400).json({
+          error: true,
+          msg: `This Already Exist ! User ID : ${existingUser[0].id} User Email : ${email} `,
+          data: existingUser[0],
+        });
+      }
 
       // ✅ 2. Check if created_by user exists and is not deleted
-      if (created_by) {
-        const [creatorUser] = await pool.query(
-          "SELECT * FROM users WHERE email = ? AND created_by = ? AND is_delete = 'false'",
-          [email, created_by]
-        );
+      // if (created_by) {
+      //   const [creatorUser] = await pool.query(
+      //     "SELECT * FROM users WHERE email = ? AND created_by = ? AND is_delete = 'false'",
+      //     [email, created_by]
+      //   );
 
-        if (creatorUser.length !== 0) {
-          return res.status(400).json({
-            error: true,
-            msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email}   `,
-          });
-        }
-      }
+      //   if (creatorUser.length !== 0) {
+      //     return res.status(400).json({
+      //       error: true,
+      //       msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email}   `,
+      //     });
+      //   }
+      // }
 
-      if (!created_by) {
-        const [creatorUser] = await pool.query(
-          "SELECT id FROM users WHERE email = ?",
-          [email]
-        );
+      // if (!created_by) {
+      //   const [creatorUser] = await pool.query(
+      //     "SELECT id FROM users WHERE email = ?",
+      //     [email]
+      //   );
 
-        if (creatorUser.length !== 0) {
-          return res.status(400).json({
-            error: true,
-            msg: "User Already Exist",
-          });
-        }
-      }
+      //   if (creatorUser.length !== 0) {
+      //     return res.status(400).json({
+      //       error: true,
+      //       msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email} `,
+      //       data: creatorUser[0],
+      //     });
+      //   }
+      // }
 
       // ✅ 3. Hash password if EMAIL signup type
       let hashedPass = "";
@@ -71,11 +79,12 @@ class Users {
 
       const imagePath = image ? image.path : null;
 
-      // ✅ 4. Insert new user
+      const createdByArray = [Number(created_by)]; // Ensure it's a number
+
       const [result] = await pool.query(
         `INSERT INTO users
-       (user_name, email, password, fcm, token, type, email_verified_status, status, role, is_delete, image, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, 'false', ?, ?)`,
+   (user_name, email, password, fcm, token, type, email_verified_status, status, role, is_delete, image, created_by)
+   VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, 'false', ?, CAST(? AS JSON))`,
         [
           user_name,
           email,
@@ -85,7 +94,7 @@ class Users {
           type,
           role,
           imagePath,
-          created_by, //th
+          JSON.stringify(createdByArray), // ✅ will become [155], not ["155"]
         ]
       );
 
@@ -338,24 +347,36 @@ class Users {
     }
   }
   async getCustomers(req, res) {
-    const { id } = req.params; // creator's user ID
+    const { id } = req.params;
+    const search = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
     try {
-      // Get total count of customers for pagination
+      const numericId = Number(id);
+      const searchValue = `%${search}%`;
+
+      // --- Count Query ---
       const countQuery = `
       SELECT COUNT(*) AS total 
       FROM users 
-      WHERE created_by = ?
+      WHERE JSON_CONTAINS(created_by, CAST(? AS JSON))
+        AND (
+          user_name LIKE ? OR
+          CAST(id AS CHAR) LIKE ?
+        )
     `;
-      const [countResult] = await pool.query(countQuery, [id]);
+      const [countResult] = await pool.query(countQuery, [
+        `[${numericId}]`,
+        searchValue,
+        searchValue,
+      ]);
       const total = countResult[0].total;
       const totalPages = Math.ceil(total / limit);
 
-      // Fetch paginated data
-      const query = `
+      // --- Paginated Query ---
+      const dataQuery = `
       SELECT 
         u.*, 
         m.id AS measurement_id
@@ -364,16 +385,24 @@ class Users {
       LEFT JOIN 
         measurements m ON u.id = m.user_id
       WHERE 
-        u.created_by = ?
+        JSON_CONTAINS(u.created_by, CAST(? AS JSON))
+        AND (
+          u.user_name LIKE ? OR
+          CAST(u.id AS CHAR) LIKE ?
+        )
+      ORDER BY u.id DESC
       LIMIT ? OFFSET ?
     `;
-
-      const [rows] = await pool.query(query, [id, limit, offset]);
+      const [rows] = await pool.query(dataQuery, [
+        `[${numericId}]`,
+        searchValue,
+        searchValue,
+        limit,
+        offset,
+      ]);
 
       if (rows.length === 0) {
-        return res
-          .status(404)
-          .json({ error: true, msg: "No customers found for this user" });
+        return res.status(404).json({ error: true, msg: "No customers found" });
       }
 
       return res.status(200).json({
@@ -559,6 +588,49 @@ class Users {
         msg: "Internal server error",
         technicalIssue: error.message,
       });
+    }
+  }
+
+  async updateCreatedBy(req, res) {
+    const { userId } = req.params;
+    const { newCreatedId } = req.body;
+
+    if (!userId || newCreatedId === undefined) {
+      return res
+        .status(400)
+        .json({ message: "userId and newCreatedId are required" });
+    }
+
+    try {
+      // Ensure it's a valid integer (remove float possibility)
+      const valueToInsert =
+        newCreatedId === null ? null : parseInt(newCreatedId, 10);
+
+      if (isNaN(valueToInsert)) {
+        return res
+          .status(400)
+          .json({ message: "newCreatedId must be a valid number" });
+      }
+
+      const [result] = await pool.execute(
+        `
+      UPDATE users
+      SET created_by = JSON_ARRAY_APPEND(
+        IFNULL(created_by, JSON_ARRAY()), '$', CAST(? AS UNSIGNED)
+      )
+      WHERE id = ?
+      `,
+        [valueToInsert, userId]
+      );
+
+      return res
+        .status(200)
+        .json({ message: "created_by updated successfully" });
+    } catch (err) {
+      console.error("MySQL Error:", err);
+      return res
+        .status(500)
+        .json({ message: "Server error", error: err.message });
     }
   }
 }

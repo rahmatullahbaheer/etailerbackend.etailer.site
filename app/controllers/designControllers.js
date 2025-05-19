@@ -5,12 +5,42 @@ class designControllers {
   // Create a new design entry
   async createDesign(req, res) {
     try {
+      const { user_id, styles_ids, description } = req.body;
+
+      // Validate required fields
+      if (!user_id || !Array.isArray(styles_ids)) {
+        return res
+          .status(400)
+          .json({ error: "user_id and styles_ids are required" });
+      }
+
+      const payload = {
+        user_id,
+        styles_ids: JSON.stringify(styles_ids), // Store as JSON string in DB
+        description: description || "",
+      };
+
       const query = "INSERT INTO styles_design SET ?";
-      await pool.query(query, [req.body]);
-      return res
-        .status(201)
-        .json({ message: "Design added successfully", data: req.body });
+      const newData = await pool.query(query, [payload]);
+
+      //get new data
+      const [rows] = await pool.query(
+        "SELECT * FROM styles_design WHERE id = ?",
+        [
+          // id
+          // user_id,
+          // styles_ids,
+          // description,
+          newData.insertId,
+        ]
+      );
+
+      return res.status(201).json({
+        message: "Design added successfully",
+        data: rows[0],
+      });
     } catch (error) {
+      console.error("Error in createDesign:", error);
       return res.status(500).json({ error: error.message });
     }
   }
@@ -41,12 +71,12 @@ class designControllers {
       return res.status(500).json({ error: error.message });
     }
   }
-  //   //getDesignsByUserId
+  // Get designs by user ID in descending order
   async getDesignsByUserId(req, res) {
     const { user_id } = req.params;
     try {
       const [rows] = await pool.query(
-        "SELECT * FROM styles_design WHERE user_id = ?",
+        "SELECT * FROM styles_design WHERE user_id = ? ORDER BY id DESC",
         [user_id]
       );
       if (rows.length === 0)
@@ -56,16 +86,37 @@ class designControllers {
       return res.status(500).json({ error: error.message });
     }
   }
-  //   // Update a design
+
+  // Update a design
   async updateDesign(req, res) {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
 
     try {
+      // Convert styles_ids array to JSON string if present
+      if (Array.isArray(updates.styles_ids)) {
+        updates.styles_ids = JSON.stringify(updates.styles_ids);
+      }
+
       const query = "UPDATE styles_design SET ? WHERE id = ?";
       await pool.query(query, [updates, id]);
-      return res.json({ message: "Design updated successfully" });
+
+      //get record
+
+      const [rows] = await pool.query(
+        "SELECT * FROM styles_design WHERE id = ?",
+        [id]
+      );
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "Design not found" });
+      }
+
+      return res.json({
+        message: "Design updated successfully",
+        data: rows[0],
+      });
     } catch (error) {
+      console.error("Error updating design:", error);
       return res.status(500).json({ error: error.message });
     }
   }

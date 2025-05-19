@@ -17,5 +17,6 @@ router.post("/change-password/:id", usersControllers.changePassword);
 router.post("/forgot-password", usersControllers.forgotPassword);
 router.post("/verify-otp", usersControllers.verifyOtp);
 router.post("/reset-password", usersControllers.resetPassword);
+router.patch("/update-create_by/:userId", usersControllers.updateCreatedBy);
 
 module.exports = router;
