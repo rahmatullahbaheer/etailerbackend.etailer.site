@@ -31,9 +31,11 @@ class designControllers {
           // user_id,
           // styles_ids,
           // description,
-          newData.insertId,
+          newData[0].insertId,
         ]
       );
+
+      console.log("dddd", rows);
 
       return res.status(201).json({
         message: "Design added successfully",

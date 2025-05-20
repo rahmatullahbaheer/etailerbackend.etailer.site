@@ -123,7 +123,7 @@ class userOrdersControllers {
       const { status } = req.query; // Get the status from the request query
       const query = `
       SELECT uo.id, uo.suitDeliveryDate,uo.suitImage, uo.suitCount, uo.amountPerSuit, uo.advancePayment, uo.urgent, 
-             uo.created_at, uo.user_id, uo.status as order_status, 
+             uo.created_at, uo.user_id, uo.status as order_status, uo.style_id as style_id , uo.mearsurement_id as mearsurement_id,
              u.id as user_id, u.full_name, u.image, u.user_name, u.country, u.city, u.phone_no, 
              u.location_address, u.location_log, u.location_lat, u.email, 
              u.stripe_subscription_status, u.email_verified_status, u.fcm, u.status as user_status, 
@@ -151,6 +151,10 @@ class userOrdersControllers {
           created_at: order.created_at,
           user_id: order.user_id,
           status: order.order_status,
+
+          style_id: order.style_id,
+          mearsurement_id: order.mearsurement_id,
+          suitImage: order.suitImage, // Use the correct image URL
         },
         userDetails: {
           id: order.user_id,

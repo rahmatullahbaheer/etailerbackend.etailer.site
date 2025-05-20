@@ -350,18 +350,17 @@ class Users {
       const dataQuery = `
       SELECT 
         u.*,
-        JSON_ARRAYAGG(m.id) AS measurement_ids
-      FROM 
-        users u
-      LEFT JOIN 
-        measurements m ON u.id = m.user_id
-      WHERE 
-        JSON_CONTAINS(u.created_by, ?, '$')
+        IFNULL((
+          SELECT JSON_ARRAYAGG(m.id)
+          FROM measurements m
+          WHERE m.user_id = u.id
+        ), '[]') AS measurement_ids
+      FROM users u
+      WHERE JSON_CONTAINS(u.created_by, ?, '$')
         AND (
           u.user_name LIKE ? OR
           CAST(u.id AS CHAR) LIKE ?
         )
-      GROUP BY u.id
       ORDER BY u.id DESC
       LIMIT ? OFFSET ?
     `;
@@ -377,7 +376,6 @@ class Users {
         return res.status(404).json({ error: true, msg: "No customers found" });
       }
 
-      // Parse measurement_ids from JSON strings to arrays
       const parsedRows = rows.map((row) => ({
         ...row,
         measurement_ids: JSON.parse(row.measurement_ids),
@@ -571,39 +569,75 @@ class Users {
 
   async updateCreatedBy(req, res) {
     const { userId } = req.params;
-    const { newCreatedId } = req.body;
+    const { action = "add", createdId } = req.body;
 
-    if (!userId || newCreatedId === undefined) {
-      return res
-        .status(400)
-        .json({ message: "userId and newCreatedId are required" });
+    if (
+      !userId ||
+      createdId === undefined ||
+      !["add", "remove"].includes(action)
+    ) {
+      return res.status(400).json({
+        message:
+          "userId and createdId are required. Action must be 'add' or 'remove'",
+      });
     }
 
     try {
-      // Ensure it's a valid integer (remove float possibility)
-      const valueToInsert =
-        newCreatedId === null ? null : parseInt(newCreatedId, 10);
-
-      if (isNaN(valueToInsert)) {
+      const numericId = parseInt(createdId, 10);
+      if (isNaN(numericId)) {
         return res
           .status(400)
-          .json({ message: "newCreatedId must be a valid number" });
+          .json({ message: "createdId must be a valid number" });
       }
 
-      const [result] = await pool.execute(
-        `
-      UPDATE users
-      SET created_by = JSON_ARRAY_APPEND(
-        IFNULL(created_by, JSON_ARRAY()), '$', CAST(? AS UNSIGNED)
-      )
-      WHERE id = ?
-      `,
-        [valueToInsert, userId]
-      );
+      if (action === "add") {
+        await pool.execute(
+          `
+        UPDATE users
+        SET created_by = JSON_ARRAY_APPEND(
+          IFNULL(created_by, JSON_ARRAY()), '$', CAST(? AS UNSIGNED)
+        )
+        WHERE id = ?
+        `,
+          [numericId, userId]
+        );
 
-      return res
-        .status(200)
-        .json({ message: "created_by updated successfully" });
+        return res
+          .status(200)
+          .json({ message: "created_by updated (added) successfully" });
+      }
+
+      if (action === "remove") {
+        const [userRows] = await pool.query(
+          `SELECT created_by FROM users WHERE id = ?`,
+          [userId]
+        );
+
+        if (!userRows.length) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        let currentArray;
+        try {
+          const raw = userRows[0].created_by;
+          currentArray = Array.isArray(raw) ? raw : JSON.parse(raw || "[]");
+
+          if (!Array.isArray(currentArray)) currentArray = [];
+        } catch {
+          currentArray = [];
+        }
+
+        const updatedArray = currentArray.filter((id) => id !== numericId);
+
+        await pool.execute(`UPDATE users SET created_by = ? WHERE id = ?`, [
+          JSON.stringify(updatedArray),
+          userId,
+        ]);
+
+        return res
+          .status(200)
+          .json({ message: "created_by updated (removed) successfully" });
+      }
     } catch (err) {
       console.error("MySQL Error:", err);
       return res
