@@ -315,55 +315,58 @@ class Users {
       });
     }
   }
+
   async getCustomers(req, res) {
     const { id } = req.params;
     const search = req.query.search || "";
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const offset = (page - 1) * limit;
 
     try {
       const numericId = Number(id);
       const searchValue = `%${search}%`;
+      const jsonId = JSON.stringify([numericId]); // e.g., "[123]"
 
       // --- Count Query ---
       const countQuery = `
-      SELECT COUNT(*) AS total 
-      FROM users 
-      WHERE JSON_CONTAINS(created_by, CAST(? AS JSON))
+      SELECT COUNT(DISTINCT u.id) AS total
+      FROM users u
+      WHERE JSON_CONTAINS(u.created_by, ?, '$')
         AND (
-          user_name LIKE ? OR
-          CAST(id AS CHAR) LIKE ?
+          u.user_name LIKE ? OR
+          CAST(u.id AS CHAR) LIKE ?
         )
     `;
       const [countResult] = await pool.query(countQuery, [
-        `[${numericId}]`,
+        jsonId,
         searchValue,
         searchValue,
       ]);
       const total = countResult[0].total;
       const totalPages = Math.ceil(total / limit);
 
-      // --- Paginated Query ---
+      // --- Paginated Query with Aggregated Measurements ---
       const dataQuery = `
       SELECT 
-        u.*, 
-        m.id AS measurement_id
+        u.*,
+        JSON_ARRAYAGG(m.id) AS measurement_ids
       FROM 
         users u
       LEFT JOIN 
         measurements m ON u.id = m.user_id
       WHERE 
-        JSON_CONTAINS(u.created_by, CAST(? AS JSON))
+        JSON_CONTAINS(u.created_by, ?, '$')
         AND (
           u.user_name LIKE ? OR
           CAST(u.id AS CHAR) LIKE ?
         )
+      GROUP BY u.id
       ORDER BY u.id DESC
       LIMIT ? OFFSET ?
     `;
       const [rows] = await pool.query(dataQuery, [
-        `[${numericId}]`,
+        jsonId,
         searchValue,
         searchValue,
         limit,
@@ -374,10 +377,16 @@ class Users {
         return res.status(404).json({ error: true, msg: "No customers found" });
       }
 
+      // Parse measurement_ids from JSON strings to arrays
+      const parsedRows = rows.map((row) => ({
+        ...row,
+        measurement_ids: JSON.parse(row.measurement_ids),
+      }));
+
       return res.status(200).json({
         error: false,
         msg: "Customers retrieved successfully",
-        data: rows,
+        data: parsedRows,
         pagination: {
           total,
           page,

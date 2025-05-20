@@ -111,7 +111,7 @@ class designControllers {
         return res.status(404).json({ message: "Design not found" });
       }
 
-      return res.json({
+      return res.status(200).json({
         message: "Design updated successfully",
         data: rows[0],
       });
