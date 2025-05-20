@@ -32,28 +32,59 @@ class Users {
             },
           });
         }
-
+      }
+      if (existingUser.length !== 0) {
         return res.status(400).json({
           error: true,
-          msg: `This Already Exist! User ID: ${existingUser[0].id}, Email: ${email}`,
+          msg: `This Already Exist ! User ID : ${existingUser[0].id} User Email : ${email} `,
           data: existingUser[0],
         });
       }
 
-      // ✅ 2. Hash password if EMAIL signup type
+      // ✅ 2. Check if created_by user exists and is not deleted
+      // if (created_by) {
+      //   const [creatorUser] = await pool.query(
+      //     "SELECT * FROM users WHERE email = ? AND created_by = ? AND is_delete = 'false'",
+      //     [email, created_by]
+      //   );
+
+      //   if (creatorUser.length !== 0) {
+      //     return res.status(400).json({
+      //       error: true,
+      //       msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email}   `,
+      //     });
+      //   }
+      // }
+
+      // if (!created_by) {
+      //   const [creatorUser] = await pool.query(
+      //     "SELECT id FROM users WHERE email = ?",
+      //     [email]
+      //   );
+
+      //   if (creatorUser.length !== 0) {
+      //     return res.status(400).json({
+      //       error: true,
+      //       msg: `This Already Exist ! User ID : ${creatorUser[0].id} User Email : ${email} `,
+      //       data: creatorUser[0],
+      //     });
+      //   }
+      // }
+
+      // ✅ 3. Hash password if EMAIL signup type
       let hashedPass = "";
       if (type === "EMAIL") {
         hashedPass = await hashedPassword(password);
       }
 
       const imagePath = image ? image.path : null;
-      const createdByArray = [Number(created_by)];
 
-      // ✅ 3. Insert new user into database
+      const createdByArray = [Number(created_by)]; // Ensure it's a number
+
       const [result] = await pool.query(
         `INSERT INTO users
-       (user_name, email, password, fcm, token, type, email_verified_status, status, role, is_delete, image, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, 'false', ?, ?)`,
+   (user_name, email, password, fcm, token, type, email_verified_status, status, role, is_delete, image, created_by)
+   VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, 'false', ?, CAST(? AS JSON))`,
         [
           user_name,
           email,
@@ -63,19 +94,19 @@ class Users {
           type,
           role,
           imagePath,
-          JSON.stringify(createdByArray), // safe to store as string
+          JSON.stringify(createdByArray), // ✅ will become [155], not ["155"]
         ]
       );
 
-      // ✅ 4. Fetch newly inserted user
+      // ✅ 5. Fetch newly inserted user
       const [newUser] = await pool.query("SELECT * FROM users WHERE id = ?", [
         result.insertId,
       ]);
 
-      // ✅ 5. Generate JWT token
+      // // ✅ 6. Generate JWT token
       const jwtToken = createToken({ email: newUser[0].email }, "1h");
 
-      // ✅ 6. Respond with success
+      // // ✅ 7. Respond with success
       res.status(201).json({
         error: false,
         msg: "User registered successfully",
